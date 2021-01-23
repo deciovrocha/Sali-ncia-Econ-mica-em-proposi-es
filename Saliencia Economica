@@ -240,21 +240,12 @@ matriz_gama <- matriz_gama %>%
       select(NUMERO, ANO, SG_PARTIDO_AUTOR, EMENTA, SG_UF_AUTOR),
     by = c("document" = "SG_PARTIDO_AUTOR"))
 
-matriz_gama %>% 
-  group_by(topic, document,SG_UF_AUTOR) %>% 
-  filter(gamma == max(gamma),
-         !is.na(SG_UF_AUTOR)) %>%
-  ungroup() %>% 
-  count(topic, gamma,document, SG_UF_AUTOR) %>% 
-  ggplot(aes(topic, gamma)) +
+matriz_gama %>%
+  mutate(SG_UF_AUTOR = reorder(SG_UF_AUTOR, gamma * topic)) %>%
+  ggplot(aes(factor(topic), gamma)) +
   geom_col(show.legend = FALSE) +
   facet_wrap(~SG_UF_AUTOR) +
-  scale_y_continuous(labels = scales::percent) +
-  labs(x = "Tópico",
-       y = "Probabilidade gamma por estado")
-
-table(matriz_gama$topic)
-
+  labs(x = "topic", y = expression(gamma))
 install.packages("ldatuning")
 
 library(ldatuning)
