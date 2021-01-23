@@ -1,0 +1,273 @@
+pacman::p_load(tidyverse, quanteda, topicmodels, tidytext, stm, geobr)
+
+table(PROPOSICOES_TOPICOS$SG_UF_AUTOR)
+
+table(PROPOSICOES_TOPICOS$SG_TIPO)
+
+PROPOSICOES_TOPICOS <- PROPOSICOES %>% 
+  filter(SG_TIPO %in% c("PL", "MPV", "PDC", "PEC", "PLP")) %>% 
+  filter(TIPO_AUTOR %in% c("SENADO", "PODER EXECUTIVO", "CAMARA DOS DEPUTADOS"))
+
+PROPOSICOES_TOPICOS %>% 
+  group_by(ANO, SG_TIPO, TIPO_AUTOR) %>% 
+  mutate(n = n()) %>% 
+  ggplot(aes(x = ANO, y = n,col = TIPO_AUTOR)) +
+  geom_line() +
+  facet_wrap(~SG_TIPO) +
+  scale_x_continuous(breaks = c(1996, 2000, 2005, 2010,2014, 2018, 2020)) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(col = "Autor",
+       x = "Ano",
+       y  = "Total de proposições por ano")
+
+write.csv2(PROPOSICOES_TOPICOS, "estados.csv")
+
+prop_estate <- PROPOSICOES_TOPICOS %>% 
+  select(ANO, SG_TIPO, TIPO_AUTOR, SG_UF_AUTOR) %>% 
+  group_by(SG_UF_AUTOR) %>% 
+  summarise(n = n()) %>% 
+  mutate(TOTAL = case_when(
+    n %in% 0:70 ~ "1)entre 0 e 70 = baixo",
+    n %in% 71:140 ~ "2) entre 71 e 140 = médio",
+    n %in% 141:289 ~ "3) entre 141 e 289 = alto"
+  ),
+  CODIGO = case_when(
+    SG_UF_AUTOR == "RO" ~ 11,
+    SG_UF_AUTOR == "AC" ~ 12,
+    SG_UF_AUTOR == "AM" ~ 13,
+    SG_UF_AUTOR == "RR" ~ 14,
+    SG_UF_AUTOR == "PA" ~ 15,
+    SG_UF_AUTOR == "AP" ~ 16,
+    SG_UF_AUTOR == "TO" ~ 17,
+    SG_UF_AUTOR == "MA" ~ 21,
+    SG_UF_AUTOR == "PI" ~ 22,
+    SG_UF_AUTOR == "CE" ~ 23,
+    SG_UF_AUTOR == "RN" ~ 24,
+    SG_UF_AUTOR == "PB" ~ 25,
+    SG_UF_AUTOR == "PE" ~ 26,
+    SG_UF_AUTOR == "AL" ~ 27,
+    SG_UF_AUTOR == "SE" ~ 28,
+    SG_UF_AUTOR == "BA" ~ 29,
+    SG_UF_AUTOR == "MG" ~ 31,
+    SG_UF_AUTOR == "ES" ~ 32,
+    SG_UF_AUTOR == "RJ" ~ 33,
+    SG_UF_AUTOR == "SP" ~ 34,
+    SG_UF_AUTOR == "PR" ~ 41,
+    SG_UF_AUTOR == "SC" ~ 42,
+    SG_UF_AUTOR == "RS" ~ 43,
+    SG_UF_AUTOR == "MS" ~ 50,
+    SG_UF_AUTOR == "MT" ~ 51,
+    SG_UF_AUTOR == "GO" ~ 52,
+    SG_UF_AUTOR == "DF" ~ 53
+  )) %>% 
+  filter(!is.na(SG_UF_AUTOR))
+
+prop_estate
+
+ler_estado <- read_state(code_state = "all", year = 2018)
+
+ler_estado
+
+DATA_SET <- left_join(ler_estado, prop_estate, by = c("code_state" = "CODIGO"))
+
+DATA_SET$SG_UF_AUTOR[20] <- "SP"
+DATA_SET$n[20] <- 289
+DATA_SET$TOTAL[20] <- "3) entre 141 e 289 = alto"
+
+no_axis <- theme(axis.title=element_blank(),
+                 axis.text=element_blank(),
+                 axis.ticks=element_blank())
+
+ggplot() +
+  geom_sf(data=DATA_SET$geom, aes(fill= DATA_SET$TOTAL))+
+  labs(title="Proposições econômicas por Estado", size=8) +
+  theme_minimal()+
+  no_axis +
+  labs(fill = "N° de proposições")
+
+table(DATA_SET$n,
+      DATA_SET$SG_UF_AUTOR)
+
+texto <- PROPOSICOES_TOPICOS %>% 
+  unnest_tokens(term, EMENTA) %>% 
+  filter(!(term %in% c("a", "de", "do", "ao", "da", "e", "o", "que", "no",
+                        "e", "da", "o", "n", "para", "que", "sobre", "em", "da",
+                        "para", "sugere", "n", 
+                        "acrescenta", "dispositivo", "n", "junho",
+                        "lei", "dispoe", "sobre", "janeiro", "fevereiro", "setembro",
+                        "dezembro", "outras", "informacoes", "artigo", "altera", "sugere",
+                        "solicita", "novembro", "sr", "senhor", "julho", "maio", "autoriza",
+                        "r", "fins", "sao", "acerca", "ou", "os", "rj", "acerca",
+                        "das", "dos", "com", "as", "por", "pelo", "com", "na",
+                        "favor", "abre", "ministro", "estado", "uma", "aos", "nas", "providencias", "nos", "cria",
+                        "nova", "como", "inciso", "redacao", "area", "valores", "outubro", "agosto", "pela")) & !is.na(term)) %>% 
+  select(NUMERO,SG_PARTIDO_AUTOR, term, ANO) %>% 
+  filter(!str_detect(term, "[0-9]"))
+
+freq_text <- texto %>% 
+  count(TEXTO) %>% 
+  top_n(2000) %>% 
+  pull(TEXTO)
+
+matrizz <- texto %>% 
+  filter(TEXTO %in% freq_text) %>% 
+  group_by(SG_PARTIDO_AUTOR, TEXTO) %>% 
+  summarise(n = n()) %>% 
+  cast_dtm(document = SG_PARTIDO_AUTOR, term = TEXTO, value = n) 
+
+matriz_lda <- LDA(matrizz, k = 5, control = list(seed = 2000)) 
+
+tdi <- tidy(matriz_lda, matrix = "beta") 
+
+tdi <- tdi %>%
+  group_by(topic) %>% 
+  top_n(10, beta) %>% 
+  ungroup() %>% 
+  arrange(topic, -beta) %>% 
+  mutate(topic = factor(topic, labels = c("Regulação 
+Fiscal",
+                                          "Regulação 
+Financeira",
+                                          "Setor Público",
+                                          "Desenvolvimentismo",
+                                          "Regulação 
+Local")))
+
+tdi %>% 
+  group_by(topic) %>% 
+  top_n(10) %>% 
+  ungroup() %>% 
+  arrange(topic, -beta) %>% 
+  mutate(term = reorder_within(term, beta, topic)) %>% 
+  ggplot(aes(y = term, x= beta, col = topic)) +
+  geom_point(size = 2, show.legend = FALSE) +
+  geom_segment(
+    mapping = aes(yend = term),
+    xend = 0,
+    linetype = "dotted",
+    show.legend = FALSE) +
+  facet_wrap(~topic, scales = "free") +
+  scale_y_reordered() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.x = element_blank()
+  ) +
+  labs(y = "Termo")
+
+matriz_gama <- tidy(matriz_lda, matrix = "gamma")
+
+matriz_gama <- matriz_gama %>% 
+  left_join( 
+  PROPOSICOES_TOPICOS%>%
+  select(NUMERO, ANO, SG_PARTIDO_AUTOR, EMENTA),
+    by = c("document" = "SG_PARTIDO_AUTOR"))
+
+matriz_gama %>% 
+  group_by(topic) %>% 
+  filter(gamma == max(gamma)) %>% 
+  select(topic, ANO, gamma) %>% 
+  count(ANO, gamma) %>% 
+  ggplot(aes(ANO, n*0.01)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~topic) +
+  theme(axis.text.x = element_text(angle = 90), panel.background = element_rect(fill = "white", colour = "grey50"))+
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Ano",
+       y = "Probabilidade gamma por ano") +
+  scale_x_continuous(breaks = c(1996, 2000, 2004, 2008, 2012, 2016, 2020))
+  
+
+matriz_gama %>% 
+  mutate(document = case_when(
+    document == "AVANTE" ~ "AVANTE",
+    document == "CIDADANIA" ~ "CIDADANIA",
+    document == "DEM" ~ "DEM",
+    document == "MDB" ~ "PMDB",
+    document == "NOVO" ~ "NOVO",
+    document == "PCdoB" ~ "PCdoB",
+    document == "PCDOB" ~ "PCdoB",
+    document == "PDT" ~ "PDT",
+    document == "PEN" ~ "PEN",
+    document == "PFL" ~ "DEM",
+    document == "PHS" ~ "PHS",
+    document == "PL" ~ "REPUBLICANOS",
+    document == "PMDB" ~ "PMDB",
+    document == "PMN" ~ "PMN",
+    document == "PODE" ~ "PODEMOS",
+    document == "PP" ~ "PP",
+    document == "PPB" ~ "PP",
+    document == "PPR" ~ "PP",
+    document == "PPS" ~ "CIDADANIA",
+    document == "PR" ~ "PR",
+    document == "PRB" ~ "REPUBLICANOS",
+    document == "PROS" ~ "PROS",
+    document == "PRTB" ~ "PRTB",
+    document == "PSB" ~ "PSB",
+    document == "PSC" ~ "PSC",
+    document == "PSD" ~ "PSD",
+    document == "PSDB" ~ "PSDB",
+    document == "PSL" ~ "PSL",
+    document == "PSOL" ~ "PSOL",
+    document == "PST" ~ "REPUBLICANOS",
+    document == "PT" ~ "PT",
+    document == "PTB" ~ "PTB",
+    document == "PTC" ~ "PTC",
+    document == "PTdoB" ~ "PTdoB",
+    document == "PTN" ~ "PODEMOS",
+    document == "PV" ~ "PV",
+    document == "REDE" ~ "REDE",
+    document == "REPULICANOS" ~ "REPUBLICANOS",
+    document == "SDD" ~ "SDD",
+    document == "SEM PARTIDO" ~ "SEM PARTIDO",
+    document == "SOLIDARIEDADE" ~ "SOLIDARIEDADE",
+    document == "NA" ~ "EXECUTIVO")) %>% 
+  group_by(topic, document) %>% 
+  filter(gamma == max(gamma),
+         !is.na(document)) %>%
+  ungroup() %>% 
+  count(topic, gamma, document) %>% 
+  ggplot(aes(topic, gamma)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~document) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Tópico",
+       y = "Probabilidade gamma por partido")
+
+matriz_gama <- matriz_gama %>% 
+  left_join( 
+    PROPOSICOES_TOPICOS%>%
+      select(NUMERO, ANO, SG_PARTIDO_AUTOR, EMENTA, SG_UF_AUTOR),
+    by = c("document" = "SG_PARTIDO_AUTOR"))
+
+matriz_gama %>% 
+  group_by(topic, document,SG_UF_AUTOR) %>% 
+  filter(gamma == max(gamma),
+         !is.na(SG_UF_AUTOR)) %>%
+  ungroup() %>% 
+  count(topic, gamma,document, SG_UF_AUTOR) %>% 
+  ggplot(aes(topic, gamma)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~SG_UF_AUTOR) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Tópico",
+       y = "Probabilidade gamma por estado")
+
+table(matriz_gama$topic)
+
+install.packages("ldatuning")
+
+library(ldatuning)
+
+result <- FindTopicsNumber(
+  matrizz,
+  topics = seq(from = 2, to = 30, by = 1),
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 2000),
+  mc.cores = 2L,
+  verbose = TRUE
+)
+result
+
+FindTopicsNumber_plot(result)
