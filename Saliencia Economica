@@ -20,7 +20,61 @@ PROPOSICOES_TOPICOS %>%
        x = "Ano",
        y  = "Total de proposições por ano")
 
-write.csv2(PROPOSICOES_TOPICOS, "estados.csv")
+PROPOSICOES_TOPICOS %>% 
+  select(ANO,SG_PARTIDO_AUTOR) %>% 
+  mutate(SG_PARTIDO_AUTOR = case_when(
+    SG_PARTIDO_AUTOR == "AVANTE" ~ "AVANTE",
+    SG_PARTIDO_AUTOR == "CIDADANIA" ~ "CIDADANIA",
+    SG_PARTIDO_AUTOR == "DEM" ~ "DEM",
+    SG_PARTIDO_AUTOR == "MDB" ~ "PMDB",
+    SG_PARTIDO_AUTOR == "NOVO" ~ "NOVO",
+    SG_PARTIDO_AUTOR == "PCdoB" ~ "PCdoB",
+    SG_PARTIDO_AUTOR == "PCDOB" ~ "PCdoB",
+    SG_PARTIDO_AUTOR == "PDT" ~ "PDT",
+    SG_PARTIDO_AUTOR == "PEN" ~ "PEN",
+    SG_PARTIDO_AUTOR == "PFL" ~ "DEM",
+    SG_PARTIDO_AUTOR == "PHS" ~ "PHS",
+    SG_PARTIDO_AUTOR == "PL" ~ "REPUBLICANOS",
+    SG_PARTIDO_AUTOR == "PMDB" ~ "PMDB",
+    SG_PARTIDO_AUTOR == "PMN" ~ "PMN",
+    SG_PARTIDO_AUTOR == "PODE" ~ "PODEMOS",
+    SG_PARTIDO_AUTOR == "PP" ~ "PP",
+    SG_PARTIDO_AUTOR == "PPB" ~ "PP",
+    SG_PARTIDO_AUTOR == "PPR" ~ "PP",
+    SG_PARTIDO_AUTOR == "PPS" ~ "CIDADANIA",
+    SG_PARTIDO_AUTOR == "PR" ~ "PR",
+    SG_PARTIDO_AUTOR == "PRB" ~ "REPUBLICANOS",
+    SG_PARTIDO_AUTOR == "PROS" ~ "PROS",
+    SG_PARTIDO_AUTOR == "PRTB" ~ "PRTB",
+    SG_PARTIDO_AUTOR == "PSB" ~ "PSB",
+    SG_PARTIDO_AUTOR == "PSC" ~ "PSC",
+    SG_PARTIDO_AUTOR == "PSD" ~ "PSD",
+    SG_PARTIDO_AUTOR == "PSDB" ~ "PSDB",
+    SG_PARTIDO_AUTOR == "PSL" ~ "PSL",
+    SG_PARTIDO_AUTOR == "PSOL" ~ "PSOL",
+    SG_PARTIDO_AUTOR == "PST" ~ "REPUBLICANOS",
+    SG_PARTIDO_AUTOR == "PT" ~ "PT",
+    SG_PARTIDO_AUTOR == "PTB" ~ "PTB",
+    SG_PARTIDO_AUTOR == "PTC" ~ "PTC",
+    SG_PARTIDO_AUTOR == "PTdoB" ~ "PTdoB",
+    SG_PARTIDO_AUTOR == "PTN" ~ "PODEMOS",
+    SG_PARTIDO_AUTOR == "PV" ~ "PV",
+    SG_PARTIDO_AUTOR == "REDE" ~ "REDE",
+    SG_PARTIDO_AUTOR == "REPULICANOS" ~ "REPUBLICANOS",
+    SG_PARTIDO_AUTOR == "SDD" ~ "SDD",
+    SG_PARTIDO_AUTOR == "SEM PARTIDO" ~ "SEM PARTIDO",
+    SG_PARTIDO_AUTOR == "SOLIDARIEDADE" ~ "SOLIDARIEDADE",
+    SG_PARTIDO_AUTOR == "NA" ~ "EXECUTIVO")) %>% 
+  group_by(ANO, SG_PARTIDO_AUTOR) %>% 
+  mutate(n = n()) %>% 
+  filter(!is.na(SG_PARTIDO_AUTOR)) %>% 
+  ungroup() %>% 
+  count(SG_PARTIDO_AUTOR) %>% 
+  ggplot(aes(x= reorder(SG_PARTIDO_AUTOR, n), y = n)) + 
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  theme_minimal() +
+  labs(y = "Total de Proposições na área econômica", x = "Sigla do partido")
 
 prop_estate <- PROPOSICOES_TOPICOS %>% 
   select(ANO, SG_TIPO, TIPO_AUTOR, SG_UF_AUTOR) %>% 
